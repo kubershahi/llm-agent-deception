@@ -3,6 +3,8 @@ from deceptive_text_env.agents.base import (
     BeliefTrackingAgent,
     MemoryAugmentedAgent,
     NaiveAgent,
+    OracleAgent,
+    RandomAgent,
     ReflectionEnhancedAgent,
     build_agent,
 )
@@ -13,5 +15,7 @@ __all__ = [
     "MemoryAugmentedAgent",
     "BeliefTrackingAgent",
     "ReflectionEnhancedAgent",
+    "RandomAgent",
+    "OracleAgent",
     "build_agent",
 ]

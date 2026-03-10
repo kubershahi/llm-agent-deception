@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from collections import defaultdict
+import random
+from collections import defaultdict, deque
 from typing import Any
 
-from deceptive_text_env.config import ExperimentConfig, ModelConfig
+from deceptive_text_env.config import ExperimentConfig, ModelConfig, WorldConfig
 from deceptive_text_env.llm import BaseLLMClient
 from deceptive_text_env.memory import StructuredMemoryArchitecture
 from deceptive_text_env.prompts import agent_system_prompt, reflection_system_prompt
@@ -25,11 +26,13 @@ class BasePlanningAgent:
         llm_client: BaseLLMClient,
         model_config: ModelConfig,
         experiment_config: ExperimentConfig,
+        world_config: WorldConfig | None = None,
     ) -> None:
         self.variant = variant
         self.llm_client = llm_client
         self.model_config = model_config
         self.experiment_config = experiment_config
+        self.world_config = world_config
         self.memory = StructuredMemoryArchitecture()
         self.trust_scores: dict[str, float] = {}
         self.asked_pairs: set[tuple[str, str]] = set()
@@ -56,6 +59,9 @@ class BasePlanningAgent:
     def select_action(self, observation: Observation) -> AgentAction:
         if self._should_reflect(observation):
             self._reflect(observation)
+
+        # Build a priority hint (only when use_hints is enabled)
+        priority_hint = self._build_priority_hint(observation) if self.experiment_config.use_hints else ""
 
         payload = {
             "variant": self.variant,
@@ -89,9 +95,11 @@ class BasePlanningAgent:
             "recent_failures": self.recent_failures[-4:],
             "reflection": self.latest_reflection,
         }
+        if priority_hint:
+            payload["PRIORITY_ACTION"] = priority_hint
         result = self.llm_client.generate_json(
             task="agent_action",
-            system_prompt=agent_system_prompt(self.variant),
+            system_prompt=agent_system_prompt(self.variant, use_hints=self.experiment_config.use_hints, world_config=self.world_config),
             user_prompt=(
                 "Choose one next action for the text game. Return JSON with action_type, target, topic, content, and metadata."
             ),
@@ -132,6 +140,43 @@ class BasePlanningAgent:
         if not self.recovery_durations:
             return None
         return sum(self.recovery_durations) / len(self.recovery_durations)
+
+    def _build_priority_hint(self, observation: Observation) -> str:
+        """Generate a hint when the agent should act instead of talking."""
+        # Derive all sigil names from available_topics (location_of:X entries)
+        all_sigils = [
+            t.split(":", 1)[1]
+            for t in observation.available_topics
+            if t.startswith("location_of:")
+        ]
+        needed_sigils = [s for s in all_sigils if s not in observation.collected_sigils]
+        claims = self.memory.claims_by_fact()
+
+        # At an outer location: search if a needed sigil is believed to be here
+        if observation.location != "village_square":
+            for sigil in needed_sigils:
+                fact_id = f"location_of:{sigil}"
+                if fact_id in claims:
+                    for record in claims[fact_id]:
+                        if record.get("claimed_value") == observation.location:
+                            return (
+                                f"You are at {observation.location} where {sigil} is believed to be. "
+                                f"You MUST use 'search' action NOW to collect it. Do NOT talk to NPCs here."
+                            )
+            return ""
+
+        # At village_square: if we already have claims about a needed sigil from 2+ sources
+        # (or asked about it 2+ times), stop querying and go collect it
+        for sigil in needed_sigils:
+            fact_id = f"location_of:{sigil}"
+            if fact_id in claims and len(claims[fact_id]) >= 2:
+                best_loc = claims[fact_id][-1].get("claimed_value", "")
+                if best_loc and best_loc != "village_square":
+                    return (
+                        f"You already have enough information: {sigil} is at {best_loc}. "
+                        f"STOP talking and use 'move' to go to {best_loc} NOW. Do not ask more questions."
+                    )
+        return ""
 
     def _initial_trust(self, npc_name: str) -> float:
         if self.variant == "naive":
@@ -345,37 +390,202 @@ class BasePlanningAgent:
 
 
 class NaiveAgent(BasePlanningAgent):
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="naive", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="naive", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
 
 
 class MemoryAugmentedAgent(BasePlanningAgent):
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="memory_augmented", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="memory_augmented", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
 
 
 class BeliefTrackingAgent(BasePlanningAgent):
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="belief_tracking", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="belief_tracking", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
 
 
 class ReflectionEnhancedAgent(BasePlanningAgent):
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="reflection_enhanced", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="reflection_enhanced", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
 
 
 class BeliefNoDecayAgent(BasePlanningAgent):
     """Ablation: belief-tracking but trust never decreases on failure."""
 
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="belief_no_decay", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="belief_no_decay", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
 
 
 class MemoryWithTrustAgent(BasePlanningAgent):
     """Ablation: memory-augmented + trust scores (but no reflection)."""
 
-    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig) -> None:
-        super().__init__(variant="memory_with_trust", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="memory_with_trust", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
+
+
+class RandomAgent(BasePlanningAgent):
+    """Baseline floor: picks uniformly random valid actions each turn. No LLM calls."""
+
+    def __init__(self, *, llm_client: BaseLLMClient, model_config: ModelConfig, experiment_config: ExperimentConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(variant="random", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
+
+    def select_action(self, observation: Observation) -> AgentAction:
+        candidates: list[AgentAction] = []
+
+        # Talk to any visible NPC about any available topic
+        for npc in observation.visible_npcs:
+            for topic in observation.available_topics:
+                candidates.append(AgentAction(action_type="talk", target=npc, topic=topic))
+
+        # Move to any accessible location
+        for loc in observation.accessible_locations:
+            candidates.append(AgentAction(action_type="move", target=loc))
+
+        # Search current location
+        candidates.append(AgentAction(action_type="search", target=observation.location))
+
+        # Unlock vault if at ancient_vault and has all sigils
+        if observation.location == "ancient_vault":
+            all_sigils = [
+                t.split(":", 1)[1]
+                for t in observation.available_topics
+                if t.startswith("location_of:")
+            ]
+            if all(s in observation.collected_sigils for s in all_sigils):
+                order = list(all_sigils)
+                random.shuffle(order)
+                candidates.append(AgentAction(
+                    action_type="unlock",
+                    target="ancient_vault",
+                    content=", ".join(order),
+                ))
+
+        action = random.choice(candidates)
+        self._record_hypothesis(action)
+        self.trace.append(
+            f"Turn {observation.turn_index}: action={action.action_type} target={action.target} topic={action.topic}"
+        )
+        return action
+
+    def process_step_result(self, result: StepResult) -> None:
+        self.trace.append(result.public_feedback)
+
+
+class OracleAgent(BasePlanningAgent):
+    """Baseline ceiling: knows ground truth and follows the optimal path. No LLM calls.
+
+    Optimal strategy:
+    1. Talk to one NPC about each sigil location and vault order (to appear natural).
+    2. Collect all sigils via shortest paths.
+    3. Go to vault and unlock with the correct order.
+
+    Uses BFS for shortest-path planning on the world's location graph.
+    """
+
+    def __init__(
+        self,
+        *,
+        llm_client: BaseLLMClient,
+        model_config: ModelConfig,
+        experiment_config: ExperimentConfig,
+        world_config: WorldConfig,
+    ) -> None:
+        super().__init__(variant="oracle", llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)
+        self._plan: list[AgentAction] = []
+        self._plan_built = False
+
+    def reset(self, npc_names: list[str]) -> None:
+        super().reset(npc_names)
+        self._plan = []
+        self._plan_built = False
+
+    def _bfs_path(self, start: str, goal: str) -> list[str]:
+        """Return list of locations from start to goal (exclusive of start)."""
+        if start == goal:
+            return []
+        graph = self.world_config.location_graph
+        visited: set[str] = {start}
+        queue: deque[tuple[str, list[str]]] = deque([(start, [])])
+        while queue:
+            current, path = queue.popleft()
+            for neighbor in graph.get(current, []):
+                if neighbor == goal:
+                    return path + [neighbor]
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+        # Fallback: should not happen in a connected graph
+        return [goal]
+
+    def _build_plan(self, observation: Observation) -> None:
+        """Build the full action plan from scratch based on current state."""
+        self._plan_built = True
+        self._plan = []
+        current_location = observation.location
+
+        # Phase 1: Ask one NPC about each topic (only if NPCs are visible now).
+        # We'll handle this dynamically - if we're at a location with NPCs and
+        # haven't asked yet, we ask. Otherwise we skip.
+
+        # Phase 2: Collect sigils we don't have yet
+        needed_sigils = [
+            s for s in self.world_config.vault_order
+            if s not in observation.collected_sigils
+        ]
+
+        for sigil in needed_sigils:
+            sigil_loc = self.world_config.sigil_locations[sigil]
+            path = self._bfs_path(current_location, sigil_loc)
+            for loc in path:
+                self._plan.append(AgentAction(action_type="move", target=loc))
+            self._plan.append(AgentAction(action_type="search", target=sigil_loc))
+            current_location = sigil_loc
+
+        # Phase 3: Go to vault and unlock
+        vault_loc = "ancient_vault"
+        path = self._bfs_path(current_location, vault_loc)
+        for loc in path:
+            self._plan.append(AgentAction(action_type="move", target=loc))
+
+        correct_order = list(self.world_config.vault_order)
+        self._plan.append(AgentAction(
+            action_type="unlock",
+            target="ancient_vault",
+            content=", ".join(correct_order),
+        ))
+
+    def select_action(self, observation: Observation) -> AgentAction:
+        # On first call or if plan is empty, build/rebuild the plan
+        if not self._plan_built:
+            # Phase 0: If there are NPCs visible, ask one about each topic first
+            # (do this before building the collection plan)
+            if observation.visible_npcs and observation.available_topics:
+                npc = observation.visible_npcs[0]
+                # Find a topic we haven't asked about yet
+                for topic in observation.available_topics:
+                    if (npc, topic) not in self.asked_pairs:
+                        action = AgentAction(action_type="talk", target=npc, topic=topic)
+                        self._record_hypothesis(action)
+                        self.trace.append(
+                            f"Turn {observation.turn_index}: action={action.action_type} target={action.target} topic={action.topic}"
+                        )
+                        return action
+            self._build_plan(observation)
+
+        if not self._plan:
+            # Fallback: search current location (should not normally happen)
+            action = AgentAction(action_type="search", target=observation.location)
+        else:
+            action = self._plan.pop(0)
+
+        self._record_hypothesis(action)
+        self.trace.append(
+            f"Turn {observation.turn_index}: action={action.action_type} target={action.target} topic={action.topic}"
+        )
+        return action
+
+    def process_step_result(self, result: StepResult) -> None:
+        self.trace.append(result.public_feedback)
 
 
 def build_agent(
@@ -384,15 +594,27 @@ def build_agent(
     llm_client: BaseLLMClient,
     model_config: ModelConfig,
     experiment_config: ExperimentConfig,
+    world_config: WorldConfig | None = None,
 ) -> BasePlanningAgent:
-    registry = {
+    registry: dict[str, type[BasePlanningAgent]] = {
         "naive": NaiveAgent,
         "memory_augmented": MemoryAugmentedAgent,
         "belief_tracking": BeliefTrackingAgent,
         "reflection_enhanced": ReflectionEnhancedAgent,
         "belief_no_decay": BeliefNoDecayAgent,
         "memory_with_trust": MemoryWithTrustAgent,
+        "random": RandomAgent,
+        "oracle": OracleAgent,
     }
     if variant not in registry:
         raise ValueError(f"Unknown agent variant: {variant}")
-    return registry[variant](llm_client=llm_client, model_config=model_config, experiment_config=experiment_config)
+    if variant == "oracle":
+        if world_config is None:
+            world_config = WorldConfig()
+        return OracleAgent(
+            llm_client=llm_client,
+            model_config=model_config,
+            experiment_config=experiment_config,
+            world_config=world_config,
+        )
+    return registry[variant](llm_client=llm_client, model_config=model_config, experiment_config=experiment_config, world_config=world_config)

@@ -34,9 +34,16 @@ A research framework for studying how LLM-based agents plan and complete long-ho
 ├── tests/                       # Unit + integration tests
 ├── run_experiment.py            # Run all variants (mock/hybrid/full)
 ├── run_tritonai_experiment.py   # Run with TritonAI API + logging + multithreading
+├── run_scaling_experiment.py    # NPC scaling experiment (vary 4/6/8/10 NPCs)
+├── run_cross_model_experiment.py # Cross-model ablation (GPT-OSS, Llama, Mistral)
+├── run_extended_experiment.py   # Extended world experiment (7 locations, 4 sigils)
 ├── run_liar_ratio_comparison.py # Formatted comparison tables
 ├── plot_results.py              # Per-experiment metric plots (with error bars)
 ├── plot_combined.py             # Mock vs real LLM side-by-side plots
+├── plot_heatmap.py              # Publication-ready heatmap visualizations
+├── plot_trace_comparison.py     # Action timeline and distribution analysis
+├── plot_scaling.py              # NPC scaling experiment plots
+├── plot_cross_model.py          # Cross-model comparison plots
 ├── RESULTS_ANALYSIS.md          # Detailed results write-up with findings
 └── llm_logs/                    # Raw LLM API calls (prompts + responses)
 ```
@@ -71,10 +78,10 @@ A research framework for studying how LLM-based agents plan and complete long-ho
 
 ## Experiment Modes
 
-| Mode | Step Budget | NPC Placement | Purpose |
-|------|-------------|---------------|---------|
-| **Normal** | 24 steps | All at village_square | Baseline (easy, ceiling effect) |
-| **Hard** | 18 steps | Spread across locations | Differentiation (tight budget, travel required) |
+| Mode | Locations | Sigils | Step Budget | Optimal | Topology | Purpose |
+|------|-----------|--------|-------------|---------|----------|---------|
+| **Default (Hard)** | 5 | 3 | 18 steps | 15 | Hub-and-spoke | Primary evaluation |
+| **Extended** | 7 | 4 | 25 steps | 19 | Branched | Complexity stress test |
 
 ## Quick Start
 
@@ -131,14 +138,50 @@ python -m pytest tests/ -v
 
 ## Key Findings
 
-1. **Belief-Tracking, Belief-No-Decay, and Memory+Trust achieve 100% success** across all deception levels in hard mode — the only variants robust to both tight budgets and high deception
-2. **Reflection is catastrophic under resource pressure**: 25% overall success in hard mode, including 0% at LR=0.0 where there are no liars at all
-3. **Naive degrades at high deception**: drops to 50% success at LR≥0.3 when step budget is tight
-4. **Trust decay is optional**: the Belief-No-Decay ablation matches full Belief-Tracking, suggesting initial skepticism matters more than dynamic penalization
-5. **Memory + Trust is the sweet spot**: best efficiency (15-16 steps) with full robustness, showing reflection adds cost without benefit
-6. **Grounded verification through action beats reasoning about deception**: trial-and-error is more effective than meta-cognitive reflection for current LLMs
+1. **Belief-Tracking and Memory+Trust achieve 100% success** across all deception levels (LR=0.0–0.7) on GPT-OSS-120B in both default and extended worlds — matching the oracle upper bound
+2. **The Reflection Paradox**: Reflection-Enhanced (28%) performs *worse* than Naive (64%) — adding reasoning decreases performance under resource pressure
+3. **Extended world amplifies differentiation**: Naive drops from 64% → 33%, while trust-based variants remain at 100%, confirming robustness across environment complexity
+4. **Llama-4-Scout fails completely (0%) without structured hints** despite producing valid JSON — it is a planning failure, not a formatting failure
+5. **Payload hints as a diagnostic tool**: The hint ablation decomposes failures into planning vs. reasoning — Llama's 0%→93% gap on Belief-Tracking shows planning is the bottleneck, not deception reasoning
+6. **Planning capability, not reasoning capability, is the primary bottleneck** for LLM agents in structured environments
 
 See `RESULTS_ANALYSIS.md` for the full write-up with tables, discussion, and limitations.
+
+## Default World Results (GPT-OSS-120B, 5 runs, no hints)
+
+| Variant | LR=0.0 | LR=0.1 | LR=0.3 | LR=0.5 | LR=0.7 | Overall |
+|---------|--------|--------|--------|--------|--------|---------|
+| Oracle | 100% | 100% | 100% | 100% | 100% | **100%** |
+| Random | 0% | 0% | 0% | 0% | 0% | **0%** |
+| Naive | 100% | 100% | 100% | **0%** | **20%** | **64%** |
+| **Belief-Tracking** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** |
+| Reflection-Enh. | 40% | 20% | 60% | 20% | 0% | **28%** |
+| **Memory+Trust** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** |
+
+## Extended World Results (GPT-OSS-120B, 3 runs, no hints)
+
+| Variant | LR=0.0 | LR=0.3 | LR=0.5 | LR=0.7 | Overall |
+|---------|--------|--------|--------|--------|---------|
+| Oracle | 100% | 100% | 100% | 100% | **100%** |
+| Random | 0% | 0% | 0% | 0% | **0%** |
+| Naive | 100% | **33%** | **0%** | **0%** | **33%** |
+| **Belief-Tracking** | **100%** | **100%** | **100%** | **100%** | **100%** |
+| Reflection-Enh. | 67% | 100% | 33% | 33% | **58%** |
+| **Memory+Trust** | **100%** | **100%** | **100%** | **100%** | **100%** |
+
+## Cross-Model Comparison (No Hints)
+
+| Model | Naive | Belief-Track. | Reflect.-Enh. | Memory+Trust | Overall |
+|-------|-------|---------------|----------------|--------------|---------|
+| GPT-OSS-120B | 64% | **100%** | 28% | **100%** | **73%** |
+| Llama-4-Scout | 0% | 0% | 0% | 0% | **0%** |
+
+## Hint Ablation (With Structured Payload Hints)
+
+| Model | Naive | Belief-Track. | Reflect.-Enh. | Memory+Trust | Overall |
+|-------|-------|---------------|----------------|--------------|---------|
+| GPT-OSS-120B | 95% | **100%** | **100%** | **100%** | **95%** |
+| Llama-4-Scout | 0% | **93%** | **93%** | 7% | **48%** |
 
 ## LLM Call Logs
 

@@ -77,6 +77,18 @@ def main() -> int:
         default=1,
         help="Number of parallel threads for running episodes (default: 1)",
     )
+    parser.add_argument(
+        "--use-hints",
+        action="store_true",
+        help="Enable PRIORITY_ACTION payload hints (for hint ablation experiment)",
+    )
+    parser.add_argument(
+        "--liar-ratios",
+        nargs="+",
+        type=float,
+        default=None,
+        help="Override liar ratios (e.g. --liar-ratios 0.0 0.3 0.5 0.7)",
+    )
     args = parser.parse_args()
 
     if args.mode == "full":
@@ -99,6 +111,11 @@ def main() -> int:
     if args.max_steps is not None:
         config.experiment.max_steps = args.max_steps
 
+    if args.liar_ratios is not None:
+        config.experiment.liar_ratios = args.liar_ratios
+
+    config.experiment.use_hints = args.use_hints
+
     spread = args.spread_npcs or args.mode.startswith("hard")
 
     print(f"Mode: {args.mode}")
@@ -110,6 +127,7 @@ def main() -> int:
     print(f"Max steps: {config.experiment.max_steps}")
     print(f"Spread NPCs: {spread}")
     print(f"Advanced NPCs: {args.advanced_npcs}")
+    print(f"Use hints: {args.use_hints}")
     print()
 
     runner = EvaluationRunner(config, use_advanced_npcs=args.advanced_npcs, spread_locations=spread)
@@ -147,6 +165,8 @@ def main() -> int:
                     "runs_per_setting": config.experiment.runs_per_setting,
                     "total_npcs": config.experiment.total_npcs,
                     "variants": args.variants,
+                    "use_hints": args.use_hints,
+                    "liar_ratios": config.experiment.liar_ratios,
                 },
                 "episodes": [
                     {

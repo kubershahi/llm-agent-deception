@@ -80,6 +80,7 @@ class EvaluationRunner:
             model_config=self.config.budget_npc_model,
             use_advanced_strategies=self.use_advanced_npcs,
             spread_locations=self.spread_locations,
+            world_config=self.config.world,
         )
         environment = TextWorldEnvironment(
             world_config=self.config.world,
@@ -93,6 +94,7 @@ class EvaluationRunner:
             llm_client=self.agent_client,
             model_config=self.config.premium_agent_model,
             experiment_config=self.config.experiment,
+            world_config=self.config.world,
         )
 
         observation = environment.reset()

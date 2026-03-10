@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deceptive_text_env.config import WorldConfig
+
 
 def npc_system_prompt() -> str:
     return (
@@ -56,14 +61,44 @@ def judge_system_prompt() -> str:
     )
 
 
-def agent_system_prompt(variant: str) -> str:
+def agent_system_prompt(
+    variant: str,
+    *,
+    use_hints: bool = False,
+    world_config: "WorldConfig | None" = None,
+) -> str:
+    # Import here to avoid circular imports at module level
+    from deceptive_text_env.config import WorldConfig as _WC
+
+    if world_config is None:
+        world_config = _WC()
+
+    # Build dynamic location/connection description
+    locations = sorted(world_config.location_graph.keys())
+    connections_lines = "\n".join(
+        f"  {loc} connects to: {', '.join(world_config.location_graph[loc])}"
+        for loc in locations
+    )
+
+    sigil_names = sorted(world_config.sigil_locations.keys())
+    sigil_count = len(sigil_names)
+    sigil_list = ", ".join(sigil_names)
+
+    # Build topics list
+    topics = [f"location_of:{s}" for s in sigil_names] + ["vault_order"]
+    topics_str = ", ".join(topics)
+
+    # Unlock content example
+    unlock_example = ",".join(sigil_names)
+
     base = (
         "You are the primary planning agent in a text-based strategic game.\n\n"
         "GAME RULES:\n"
-        "- You start at village_square. The world has 5 locations connected through village_square.\n"
-        "- Your goal: collect 3 sigils (sun_sigil, moon_sigil, river_sigil) from various locations, "
+        f"- You start at {world_config.start_location}. The world has {len(locations)} locations:\n"
+        f"{connections_lines}\n"
+        f"- Your goal: collect {sigil_count} sigils ({sigil_list}) from various locations, "
         "then go to ancient_vault and unlock it with the correct sigil order.\n"
-        "- NPCs at village_square give you information about sigil locations and vault order.\n"
+        "- NPCs may be at any location. You can talk to them at any location.\n"
         "- WARNING: Some NPCs may be DECEPTIVE. You do NOT know which ones.\n\n"
         "AVAILABLE ACTIONS (pick exactly one):\n"
         '- {"action_type": "talk", "target": "<npc_name>", "topic": "<fact_id>", "content": "", '
@@ -73,14 +108,35 @@ def agent_system_prompt(variant: str) -> str:
         '- {"action_type": "search", "target": "<current_location>", "topic": "", "content": "", '
         '"metadata": {"fact_id": "...", "candidate_value": "..."}}\n'
         '- {"action_type": "unlock", "target": "ancient_vault", "topic": "", '
-        '"content": "sigil1,sigil2,sigil3", "metadata": {"fact_id": "vault_order", "candidate_value": [...]}}\n\n'
+        f'"content": "{unlock_example}", "metadata": {{"fact_id": "vault_order", "candidate_value": [...]}}}}\n\n'
         "CRITICAL RULES:\n"
         "- You MUST be at a location to search it. Use 'move' first, then 'search'.\n"
         "- You MUST be at ancient_vault to unlock it. Move there BEFORE attempting unlock.\n"
-        "- You MUST have all 3 sigils before attempting unlock.\n"
-        "- The 'content' field for unlock must be comma-separated sigil names (e.g. 'sun_sigil,moon_sigil,river_sigil').\n\n"
-        "TOPICS you can ask about: location_of:sun_sigil, location_of:moon_sigil, "
-        "location_of:river_sigil, vault_order\n\n"
+        f"- You MUST have all {sigil_count} sigils before attempting unlock.\n"
+        f"- The 'content' field for unlock must be comma-separated sigil names (e.g. '{unlock_example}').\n\n"
+    )
+
+    if use_hints:
+        base += (
+            "HINT RULES:\n"
+            "- If the payload contains a 'PRIORITY_ACTION' field, you MUST follow it. It overrides all other considerations.\n"
+            "- When you arrive at a location where a sigil is supposed to be, IMMEDIATELY use 'search' to collect it.\n"
+            "- Do NOT talk to NPCs at outer locations — go there to search, not to talk.\n"
+            "- Do NOT re-ask an NPC about the same topic. Check 'asked_pairs' in the payload.\n"
+            "- Be EFFICIENT: ask 1-2 NPCs, then immediately move and search. Do not over-query.\n\n"
+        )
+
+    base += (
+        f"TOPICS you can ask about: {topics_str}\n\n"
+        "EXAMPLE OPTIMAL SEQUENCE (for reference):\n"
+        '1. {"action_type": "talk", "target": "Aster", "topic": "location_of:sun_sigil", "content": "", "metadata": {}}\n'
+        '2. {"action_type": "move", "target": "forest_shrine", "topic": "", "content": "", "metadata": {}}\n'
+        '3. {"action_type": "search", "target": "forest_shrine", "topic": "", "content": "", "metadata": {}}\n'
+        "   -> You find sun_sigil! Now go back and repeat for other sigils.\n"
+        '4. {"action_type": "move", "target": "village_square", "topic": "", "content": "", "metadata": {}}\n'
+        f"   ... collect all {sigil_count} sigils, then ask about vault_order, then:\n"
+        '5. {"action_type": "move", "target": "ancient_vault", "topic": "", "content": "", "metadata": {}}\n'
+        f'6. {{"action_type": "unlock", "target": "ancient_vault", "topic": "", "content": "{unlock_example}", "metadata": {{}}}}\n\n'
     )
 
     variant_instructions = {

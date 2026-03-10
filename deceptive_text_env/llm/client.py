@@ -94,14 +94,24 @@ class TritonAIClient(BaseLLMClient):
             "max_completion_tokens": model_config.max_tokens,
             "seed": model_config.seed,
         }
-        response = requests.post(
-            f"{model_config.base_url.rstrip('/')}/chat/completions",
-            headers=headers,
-            json=body,
-            timeout=model_config.timeout_seconds,
-        )
-        response.raise_for_status()
-        response_payload = response.json()
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                response = requests.post(
+                    f"{model_config.base_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=body,
+                    timeout=model_config.timeout_seconds,
+                )
+                response.raise_for_status()
+                response_payload = response.json()
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+                last_exc = exc
+                if attempt < 3:
+                    time.sleep(2 ** attempt)
+        else:
+            raise RuntimeError(f"TritonAI request failed after 4 attempts: {last_exc}") from last_exc
         content = response_payload["choices"][0]["message"]["content"]
         parsed = _safe_parse_json(content)
         _log_call(task, model_config.model_name, body["messages"], content, parsed)

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import permutations
 from typing import Any
 
-from deceptive_text_env.config import ModelConfig
+from deceptive_text_env.config import ModelConfig, WorldConfig
 from deceptive_text_env.llm import BaseLLMClient
 from deceptive_text_env.prompts import npc_system_prompt
 from deceptive_text_env.types import Claim, NPCMessage, VerifiedClaim
@@ -106,9 +107,20 @@ class BaseNPC:
 
     def _candidate_values(self, topic: str, verifier: GroundedVerifier) -> list[Any]:
         if topic.startswith("location_of:"):
+            # Return all non-start, non-vault locations where sigils could plausibly be
+            if hasattr(self, "_world_config") and self._world_config is not None:
+                wc: WorldConfig = self._world_config
+                return [loc for loc in wc.location_graph if loc != wc.start_location]
             return ["forest_shrine", "cave_pool", "river_dock", "ancient_vault"]
         if topic == "vault_order":
             true_order = verifier.get_true_value(topic)
+            if hasattr(self, "_world_config") and self._world_config is not None:
+                wc = self._world_config
+                sigils = list(wc.sigil_locations.keys())
+                all_perms = [list(p) for p in permutations(sigils)]
+                # Put true order first, then up to 3 false alternatives
+                false_orders = [p for p in all_perms if p != list(true_order)]
+                return [true_order] + false_orders[:3]
             return [
                 true_order,
                 ["moon_sigil", "sun_sigil", "river_sigil"],
@@ -163,17 +175,21 @@ class BaseNPC:
 
 
 class TruthfulNPC(BaseNPC):
-    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig) -> None:
-        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="truthful")
+    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="truthful",
+                         knowledge_topics=_topics_from_world_config(world_config))
+        self._world_config = world_config
 
 
 class DeceptiveNPC(BaseNPC):
-    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig) -> None:
-        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="deceptive")
+    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="deceptive",
+                         knowledge_topics=_topics_from_world_config(world_config))
+        self._world_config = world_config
 
 
 class OpportunisticNPC(BaseNPC):
-    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, pivot_turn: int = 3) -> None:
+    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, pivot_turn: int = 3, world_config: WorldConfig | None = None) -> None:
         super().__init__(
             name=name,
             location=location,
@@ -181,21 +197,39 @@ class OpportunisticNPC(BaseNPC):
             model_config=model_config,
             policy="opportunistic",
             pivot_turn=pivot_turn,
+            knowledge_topics=_topics_from_world_config(world_config),
         )
+        self._world_config = world_config
 
 
 class PartialTruthNPC(BaseNPC):
     """Gives correct sigil locations but always lies about vault_order."""
 
-    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig) -> None:
-        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="partial_truth")
+    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="partial_truth",
+                         knowledge_topics=_topics_from_world_config(world_config))
+        self._world_config = world_config
 
 
 class CoordinatedDeceptiveNPC(BaseNPC):
     """Lies when trust >= 0.50 (lower threshold). Multiple instances give the SAME wrong answer."""
 
-    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig) -> None:
-        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="coordinated_deceptive")
+    def __init__(self, *, name: str, location: str, llm_client: BaseLLMClient, model_config: ModelConfig, world_config: WorldConfig | None = None) -> None:
+        super().__init__(name=name, location=location, llm_client=llm_client, model_config=model_config, policy="coordinated_deceptive",
+                         knowledge_topics=_topics_from_world_config(world_config))
+        self._world_config = world_config
+
+
+def _topics_from_world_config(world_config: WorldConfig | None) -> list[str]:
+    """Derive knowledge topics from a world config, falling back to defaults."""
+    if world_config is None:
+        return [
+            "location_of:sun_sigil",
+            "location_of:moon_sigil",
+            "location_of:river_sigil",
+            "vault_order",
+        ]
+    return [f"location_of:{s}" for s in world_config.sigil_locations] + ["vault_order"]
 
 
 NPC_NAMES = [
@@ -228,6 +262,7 @@ def build_npc_roster(
     location: str = "village_square",
     use_advanced_strategies: bool = False,
     spread_locations: bool = False,
+    world_config: WorldConfig | None = None,
 ) -> list[BaseNPC]:
     liar_count = max(0, int(round(total_npcs * liar_ratio)))
     liar_count = min(liar_count, max(total_npcs - 1, 0))
@@ -257,22 +292,24 @@ def build_npc_roster(
     roster: list[BaseNPC] = []
     index = 0
 
+    wc = world_config
+
     for _ in range(truthful_count):
-        roster.append(TruthfulNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config))
+        roster.append(TruthfulNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, world_config=wc))
         index += 1
     for _ in range(deceptive_count):
-        roster.append(DeceptiveNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config))
+        roster.append(DeceptiveNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, world_config=wc))
         index += 1
     for _ in range(opportunistic_count):
         roster.append(
-            OpportunisticNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, pivot_turn=3)
+            OpportunisticNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, pivot_turn=3, world_config=wc)
         )
         index += 1
     for _ in range(partial_truth_count):
-        roster.append(PartialTruthNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config))
+        roster.append(PartialTruthNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, world_config=wc))
         index += 1
     for _ in range(coordinated_count):
-        roster.append(CoordinatedDeceptiveNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config))
+        roster.append(CoordinatedDeceptiveNPC(name=NPC_NAMES[index], location=loc(index), llm_client=llm_client, model_config=model_config, world_config=wc))
         index += 1
 
     return roster[:total_npcs]

@@ -136,7 +136,7 @@ class TextWorldEnvironment:
         if self.state.current_location != "ancient_vault":
             return self._invalid_action("You must be at the ancient_vault to unlock it.")
         if len(self.state.collected_sigils) < len(self.world_config.sigil_locations):
-            return self._invalid_action("You need all three sigils before trying to unlock the vault.")
+            return self._invalid_action(f"You need all {len(self.world_config.sigil_locations)} sigils before trying to unlock the vault.")
         supplied_order = [segment.strip() for segment in action.content.split(",") if segment.strip()]
         self.state.last_unlock_order = supplied_order
         if supplied_order == self.world_config.vault_order:
@@ -170,12 +170,12 @@ class TextWorldEnvironment:
             inventory=list(self.state.collected_sigils),
             collected_sigils=list(self.state.collected_sigils),
             pending_goal_text=pending_goal,
-            available_topics=["location_of:sun_sigil", "location_of:moon_sigil", "location_of:river_sigil", "vault_order"],
+            available_topics=[f"location_of:{s}" for s in self.world_config.sigil_locations] + ["vault_order"],
             last_event=self.state.last_event,
         )
 
     def _pending_goal_text(self) -> str:
-        missing = [sigil for sigil in ["sun_sigil", "moon_sigil", "river_sigil"] if sigil not in self.state.collected_sigils]
+        missing = [sigil for sigil in self.world_config.sigil_locations if sigil not in self.state.collected_sigils]
         if missing:
             return f"Still needed: {', '.join(missing)}. Then unlock the ancient_vault."
         return "All sigils collected. Travel to the ancient_vault and submit the correct order."
