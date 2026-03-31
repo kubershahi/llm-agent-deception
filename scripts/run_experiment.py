@@ -2,14 +2,15 @@
 Run all four agent variants across all liar ratios and print results.
 
 Usage:
-  python run_experiment.py              # mock (fast, no API)
-  python run_experiment.py --mode full  # real TritonAI LLM
+  python scripts/run_experiment.py              # mock (fast, no API)
+  python scripts/run_experiment.py --mode full  # real TritonAI LLM
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from deceptive_text_env import build_default_config, build_hybrid_config, build_tritonai_config
 from deceptive_text_env.evaluation import EvaluationRunner
@@ -42,7 +43,9 @@ def main() -> int:
         for line in example.trace[:20]:
             print(f"- {line}")
 
-    output_path = f"results_{args.mode}.json"
+    results_dir = Path("artifacts/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"results_{args.mode}.json"
     with open(output_path, "w") as f:
         json.dump(
             {

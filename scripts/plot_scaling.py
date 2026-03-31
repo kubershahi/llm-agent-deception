@@ -2,7 +2,7 @@
 Plot scaling experiment results: success rate vs NPC count.
 
 Usage:
-  python plot_scaling.py results_scaling_mock.json --output-dir plots_scaling
+  python scripts/plot_scaling.py artifacts/results/results_scaling_mock.json --output-dir artifacts/plots/plots_scaling
 """
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ def plot_scaling_heatmap(episodes: list[dict], output_dir: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Plot scaling experiment results")
     parser.add_argument("results_file", help="Path to scaling results JSON")
-    parser.add_argument("--output-dir", default="plots_scaling", help="Output directory")
+    parser.add_argument("--output-dir", default="artifacts/plots/plots_scaling", help="Output directory")
     args = parser.parse_args()
 
     out = Path(args.output_dir)

@@ -3,14 +3,15 @@ Scaling experiment: vary total NPCs (4, 6, 8, 10) at fixed liar ratio
 to see how agent performance scales with information source density.
 
 Usage:
-  python run_scaling_experiment.py --mode mock --runs 10
-  python run_scaling_experiment.py --mode hard-hybrid --runs 2 --threads 4
+  python scripts/run_scaling_experiment.py --mode mock --runs 10
+  python scripts/run_scaling_experiment.py --mode hard-hybrid --runs 2 --threads 4
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from deceptive_text_env.config import (
     FrameworkConfig,
@@ -33,7 +34,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.mode != "mock":
-        enable_call_logging("llm_logs")
+        enable_call_logging("artifacts/logs")
 
     all_results = {}
     all_episodes = []
@@ -78,7 +79,9 @@ def main() -> int:
         successes = sum(1 for r in results if r.success)
         print(f"  {npc_count} NPCs: {successes}/{len(results)} success", flush=True)
 
-    output_path = f"results_scaling_{args.mode}.json"
+    results_dir = Path("artifacts/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"results_scaling_{args.mode}.json"
     with open(output_path, "w") as f:
         json.dump({
             "config": {

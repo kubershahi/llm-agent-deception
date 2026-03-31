@@ -3,14 +3,15 @@ Cross-model ablation: run the same hard-mode experiment with different LLMs.
 
 Usage:
   export TRITONAI_API_KEY="your-key"
-  python run_cross_model_experiment.py --runs 2 --threads 4
-  python run_cross_model_experiment.py --models api-llama-4-scout mistral.mistral-large-3-675b-instruct
+  python scripts/run_cross_model_experiment.py --runs 2 --threads 4
+  python scripts/run_cross_model_experiment.py --models api-llama-4-scout mistral.mistral-large-3-675b-instruct
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from deceptive_text_env.config import (
     ExperimentConfig,
@@ -70,7 +71,7 @@ def main() -> int:
                         help="Override liar ratios")
     args = parser.parse_args()
 
-    enable_call_logging("llm_logs")
+    enable_call_logging("artifacts/logs")
 
     all_results = {}
     all_episodes = []
@@ -114,7 +115,9 @@ def main() -> int:
         successes = sum(1 for r in results if r.success)
         print(f"  {model_name}: {successes}/{len(results)} success ({100*successes/max(len(results),1):.0f}%)", flush=True)
 
-    output_path = "results_cross_model.json"
+    results_dir = Path("artifacts/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / "results_cross_model.json"
     with open(output_path, "w") as f:
         json.dump({
             "config": {

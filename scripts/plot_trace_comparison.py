@@ -3,7 +3,7 @@ Generate qualitative trace comparison: show side-by-side how a successful
 Belief-Tracking episode vs a failed Reflection-Enhanced episode play out.
 
 Usage:
-  python plot_trace_comparison.py results_hard-hybrid_spread.json
+  python scripts/plot_trace_comparison.py artifacts/results/results_hard-hybrid_spread.json
 """
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ def print_trace_comparison(episodes: list[dict]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate trace comparison plots")
     parser.add_argument("results_file", help="Path to results JSON file")
-    parser.add_argument("--output-dir", default="plots", help="Output directory")
+    parser.add_argument("--output-dir", default="artifacts/plots", help="Output directory")
     parser.add_argument("--print-traces", action="store_true", help="Print full text traces")
     args = parser.parse_args()
 

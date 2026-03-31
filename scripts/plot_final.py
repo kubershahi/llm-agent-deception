@@ -10,7 +10,7 @@ Figures:
   6. Cross-model heatmap: variant x model success rate
 
 Usage:
-  python plot_final.py
+  python scripts/plot_final.py
 """
 from __future__ import annotations
 
@@ -32,7 +32,8 @@ matplotlib.rcParams.update({
     "font.family": "sans-serif",
 })
 
-OUTPUT_DIR = Path("plots_final")
+RESULTS_DIR = Path("artifacts/results")
+OUTPUT_DIR = Path("artifacts/plots/plots_final")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Distinct, colorblind-friendlier palette
@@ -65,7 +66,7 @@ LLM_VARIANTS = ["naive", "belief_tracking", "reflection_enhanced", "memory_with_
 PLOT_ORDER = ["oracle", "random", "naive", "reflection_enhanced", "belief_tracking", "memory_with_trust"]
 
 
-def load(path: str) -> dict:
+def load(path: str | Path) -> dict:
     with open(path) as f:
         return json.load(f)
 
@@ -389,21 +390,21 @@ def fig6_cross_model_heatmap(
 def main() -> None:
     print(f"Output directory: {OUTPUT_DIR}")
 
-    default_data = load("results_hard-hybrid_spread.json")
+    default_data = load(RESULTS_DIR / "results_hard-hybrid_spread.json")
     default_eps = default_data["episodes"]
     print(f"  Default world: {len(default_eps)} episodes")
 
-    extended_data = load("results_extended.json")
+    extended_data = load(RESULTS_DIR / "results_extended.json")
     extended_eps = extended_data["episodes"]
     print(f"  Extended world: {len(extended_eps)} episodes")
 
-    hints_gptoss = load("results_hints_gptoss.json")
+    hints_gptoss = load(RESULTS_DIR / "results_hints_gptoss.json")
     hints_gptoss_eps = hints_gptoss["episodes"]
 
-    nohints_llama = load("results_nohints_llama.json")
+    nohints_llama = load(RESULTS_DIR / "results_nohints_llama.json")
     nohints_llama_eps = nohints_llama["episodes"]
 
-    hints_llama = load("results_hints_llama.json")
+    hints_llama = load(RESULTS_DIR / "results_hints_llama.json")
     hints_llama_eps = hints_llama["episodes"]
 
     print("\nGenerating figures...")

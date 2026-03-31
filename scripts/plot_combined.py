@@ -2,8 +2,8 @@
 Generate combined comparison plots: mock (ceiling) vs real LLM results.
 
 Usage:
-  python plot_combined.py
-  python plot_combined.py --mock results_mock.json --real results_hybrid.json
+  python scripts/plot_combined.py
+  python scripts/plot_combined.py --mock artifacts/results/results_mock.json --real artifacts/results/results_hybrid.json
 """
 from __future__ import annotations
 
@@ -33,6 +33,8 @@ VARIANT_LABELS = {
     "belief_no_decay": "Belief (No Decay)",
     "memory_with_trust": "Memory + Trust",
 }
+
+RESULTS_DIR = Path("artifacts/results")
 
 
 def load(path: str) -> dict:
@@ -237,9 +239,9 @@ def fig5_qualitative_trace(real_episodes: list[dict], out: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate combined comparison plots")
-    parser.add_argument("--mock", default="results_mock.json", help="Mock results file")
-    parser.add_argument("--real", default="results_hybrid.json", help="Real LLM results file")
-    parser.add_argument("--output-dir", default="plots_combined", help="Output directory")
+    parser.add_argument("--mock", default=str(RESULTS_DIR / "results_mock.json"), help="Mock results file")
+    parser.add_argument("--real", default=str(RESULTS_DIR / "results_hybrid.json"), help="Real LLM results file")
+    parser.add_argument("--output-dir", default="artifacts/plots/plots_combined", help="Output directory")
     args = parser.parse_args()
 
     out = Path(args.output_dir)

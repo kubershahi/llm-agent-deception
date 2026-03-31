@@ -6,22 +6,23 @@ Usage:
   export TRITONAI_API_KEY="your-key-here"
 
   # Full real LLM (agent + NPCs + judge all use TritonAI):
-  python run_tritonai_experiment.py --mode full
+  python scripts/run_tritonai_experiment.py --mode full
 
   # Hybrid (real LLM agent + mock NPCs, cheaper for iteration):
-  python run_tritonai_experiment.py --mode hybrid
+  python scripts/run_tritonai_experiment.py --mode hybrid
 
   # Hard mode (reduced step budget + spread NPCs):
-  python run_tritonai_experiment.py --mode hard-hybrid --spread-npcs
+  python scripts/run_tritonai_experiment.py --mode hard-hybrid --spread-npcs
 
   # Mock only (no API calls, fast local test):
-  python run_tritonai_experiment.py --mode mock
+  python scripts/run_tritonai_experiment.py --mode mock
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from deceptive_text_env.config import (
     build_default_config,
@@ -103,7 +104,7 @@ def main() -> int:
         config = build_default_config()
 
     if args.mode != "mock":
-        enable_call_logging("llm_logs")
+        enable_call_logging("artifacts/logs")
 
     if args.runs is not None:
         config.experiment.runs_per_setting = args.runs
@@ -152,7 +153,9 @@ def main() -> int:
         suffix += "_advanced"
     if spread:
         suffix += "_spread"
-    output_path = f"results{suffix}.json"
+    results_dir = Path("artifacts/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"results{suffix}.json"
     with open(output_path, "w") as f:
         json.dump(
             {

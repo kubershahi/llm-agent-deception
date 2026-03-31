@@ -3,6 +3,10 @@
 **CSE 291A Final Project**
 By: Hritik Bharucha, Akshay Ghosh, Kuber Shahi, Basar Demir, Rohan Acrot
 
+## Final Project Deliverables
+- [Final Project Presentation (PDF)](reports/final_project_presentation.pdf)
+- [Final Project Report (PDF)](reports/final_project_report.pdf)
+
 ## Overview
 
 A research framework for studying how LLM-based agents plan and complete long-horizon goals in text-based environments where NPCs may provide deceptive or manipulative information. The agent must decide what information to trust while collecting sigils and unlocking a vault — incorrect beliefs propagate across time and lead to failed plans.
@@ -31,21 +35,29 @@ A research framework for studying how LLM-based agents plan and complete long-ho
 │   ├── config.py                # Model, world, and experiment configs (normal + hard mode)
 │   ├── prompts.py               # System prompts for agent, NPC, judge, reflection
 │   └── types.py                 # Dataclasses for claims, observations, actions, results
+├── artifacts/
+│   ├── results/               # results_*.json (experiment outputs)
+│   ├── plots/                 # plots_* (saved figures)
+│   └── logs/                  # LLM call logs (calls.jsonl)
+├── scripts/
+│   ├── run_experiment.py                 # Run all variants (mock/hybrid/full)
+│   ├── run_tritonai_experiment.py      # Run with TritonAI API + logging + multithreading
+│   ├── run_scaling_experiment.py       # NPC scaling experiment (vary 4/6/8/10 NPCs)
+│   ├── run_cross_model_experiment.py  # Cross-model ablation (GPT-OSS, Llama, Mistral)
+│   ├── run_extended_experiment.py      # Extended world experiment (7 locations, 4 sigils)
+│   ├── run_liar_ratio_comparison.py   # Formatted comparison tables
+│   ├── plot_results.py                 # Per-experiment metric plots (with error bars)
+│   ├── plot_combined.py                # Mock vs real LLM side-by-side plots
+│   ├── plot_heatmap.py                 # Publication-ready heatmap visualizations
+│   ├── plot_trace_comparison.py        # Action timeline and distribution analysis
+│   ├── plot_scaling.py                 # NPC scaling experiment plots
+│   └── plot_cross_model.py           # Cross-model comparison plots
 ├── tests/                       # Unit + integration tests
-├── run_experiment.py            # Run all variants (mock/hybrid/full)
-├── run_tritonai_experiment.py   # Run with TritonAI API + logging + multithreading
-├── run_scaling_experiment.py    # NPC scaling experiment (vary 4/6/8/10 NPCs)
-├── run_cross_model_experiment.py # Cross-model ablation (GPT-OSS, Llama, Mistral)
-├── run_extended_experiment.py   # Extended world experiment (7 locations, 4 sigils)
-├── run_liar_ratio_comparison.py # Formatted comparison tables
-├── plot_results.py              # Per-experiment metric plots (with error bars)
-├── plot_combined.py             # Mock vs real LLM side-by-side plots
-├── plot_heatmap.py              # Publication-ready heatmap visualizations
-├── plot_trace_comparison.py     # Action timeline and distribution analysis
-├── plot_scaling.py              # NPC scaling experiment plots
-├── plot_cross_model.py          # Cross-model comparison plots
+├── reports/
+│   ├── final_project_presentation.pdf
+│   └── final_project_report.pdf
 ├── RESULTS_ANALYSIS.md          # Detailed results write-up with findings
-└── llm_logs/                    # Raw LLM API calls (prompts + responses)
+└── README.md
 ```
 
 ## Agent Variants
@@ -94,7 +106,7 @@ pip install -r requirements.txt
 ### Run with mock LLM (no API key needed, fast)
 
 ```bash
-python run_tritonai_experiment.py --mode mock --runs 10
+python scripts/run_tritonai_experiment.py --mode mock --runs 10
 ```
 
 ### Run with real LLM (TritonAI)
@@ -103,19 +115,19 @@ python run_tritonai_experiment.py --mode mock --runs 10
 export TRITONAI_API_KEY="your-key-here"
 
 # Hard mode hybrid (recommended — tight budget, spread NPCs, real agent + mock NPCs):
-python run_tritonai_experiment.py --mode hard-hybrid --runs 2 --threads 4
+python scripts/run_tritonai_experiment.py --mode hard-hybrid --runs 2 --threads 4
 
 # Normal hybrid:
-python run_tritonai_experiment.py --mode hybrid --runs 2
+python scripts/run_tritonai_experiment.py --mode hybrid --runs 2
 
 # Full: all components use real LLM
-python run_tritonai_experiment.py --mode full --runs 2
+python scripts/run_tritonai_experiment.py --mode full --runs 2
 
 # With advanced NPC strategies
-python run_tritonai_experiment.py --mode hard-hybrid --advanced-npcs --runs 2
+python scripts/run_tritonai_experiment.py --mode hard-hybrid --advanced-npcs --runs 2
 
 # All 6 variants including ablations
-python run_tritonai_experiment.py --mode hard-hybrid --runs 2 --threads 4 \
+python scripts/run_tritonai_experiment.py --mode hard-hybrid --runs 2 --threads 4 \
   --variants naive memory_augmented belief_tracking reflection_enhanced belief_no_decay memory_with_trust
 ```
 
@@ -123,10 +135,10 @@ python run_tritonai_experiment.py --mode hard-hybrid --runs 2 --threads 4 \
 
 ```bash
 # Individual experiment plots (with error bars)
-python plot_results.py results_hard-hybrid_spread.json --output-dir plots_hard_hybrid
+python scripts/plot_results.py artifacts/results/results_hard-hybrid_spread.json --output-dir artifacts/plots/plots_hard_hybrid
 
 # Side-by-side mock vs real LLM comparison
-python plot_combined.py --mock results_mock_spread.json --real results_hard-hybrid_spread.json --output-dir plots_hard_combined
+python scripts/plot_combined.py --mock artifacts/results/results_mock_spread.json --real artifacts/results/results_hard-hybrid_spread.json --output-dir artifacts/plots/plots_hard_combined
 ```
 
 ### Run tests
@@ -185,7 +197,7 @@ See `RESULTS_ANALYSIS.md` for the full write-up with tables, discussion, and lim
 
 ## LLM Call Logs
 
-All real LLM API calls are saved to `llm_logs/calls.jsonl` when running in hybrid or full mode. Each entry contains:
+All real LLM API calls are saved to `artifacts/logs/calls.jsonl` when running in hybrid or full mode. Each entry contains:
 - Full system prompt and user payload sent to the model
 - Raw text response from the LLM
 - Parsed JSON output

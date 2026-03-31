@@ -18,7 +18,7 @@ _LOG_DIR: Path | None = None
 _LOG_COUNTER = 0
 
 
-def enable_call_logging(log_dir: str = "llm_logs") -> None:
+def enable_call_logging(log_dir: str = "artifacts/logs") -> None:
     """Enable saving every LLM call to a JSONL file."""
     global _LOG_DIR
     _LOG_DIR = Path(log_dir)

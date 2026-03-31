@@ -2,7 +2,7 @@
 Plot cross-model ablation results.
 
 Usage:
-  python plot_cross_model.py results_cross_model.json --baseline results_hard-hybrid_spread.json
+  python scripts/plot_cross_model.py artifacts/results/results_cross_model.json --baseline artifacts/results/results_hard-hybrid_spread.json
 """
 from __future__ import annotations
 
@@ -37,6 +37,8 @@ MODEL_SHORT = {
     "api-llama-4-scout": "Llama-4-Scout",
     "mistral.mistral-large-3-675b-instruct": "Mistral-675B",
 }
+
+RESULTS_DIR = Path("artifacts/results")
 
 
 def load(path: str) -> dict:
@@ -193,8 +195,12 @@ def plot_cross_model_by_lr(cross_episodes: list[dict], baseline_episodes: list[d
 def main() -> int:
     parser = argparse.ArgumentParser(description="Plot cross-model results")
     parser.add_argument("results_file", help="Cross-model results JSON")
-    parser.add_argument("--baseline", default="results_hard-hybrid_spread.json", help="Baseline (gpt-oss-120b) results")
-    parser.add_argument("--output-dir", default="plots_cross_model", help="Output directory")
+    parser.add_argument(
+        "--baseline",
+        default=str(RESULTS_DIR / "results_hard-hybrid_spread.json"),
+        help="Baseline (gpt-oss-120b) results",
+    )
+    parser.add_argument("--output-dir", default="artifacts/plots/plots_cross_model", help="Output directory")
     args = parser.parse_args()
 
     out = Path(args.output_dir)

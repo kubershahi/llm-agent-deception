@@ -262,15 +262,15 @@ The oracle and random baselines serve two purposes:
 
 | File | Description |
 |------|-------------|
-| `results_hard-hybrid_spread.json` | GPT-OSS default world, no hints, 5 runs (150 episodes) |
-| `results_extended.json` | GPT-OSS extended world, no hints, 3 runs (72 episodes) |
-| `results_nohints_gptoss.json` | GPT-OSS default world, no hints (backup) |
-| `results_nohints_llama.json` | Llama default world, no hints (60 episodes) |
-| `results_hints_gptoss.json` | GPT-OSS default world, with hints (60 episodes) |
-| `results_hints_llama.json` | Llama default world, with hints (60 episodes) |
-| `results_cross_model.json` | Cross-model comparison (Llama, no hints) |
-| `results_scaling_mock.json` | NPC scaling experiment (mock) |
-| `results_mock_spread.json` | Mock ceiling results, default world |
-| `llm_logs/calls.jsonl` | Raw LLM API calls with prompts and responses |
-| `plots_hard_hybrid/` | Default world real LLM plots |
-| `plots_cross_model/` | Cross-model comparison plots |
+| `artifacts/results/results_hard-hybrid_spread.json` | GPT-OSS default world, no hints, 5 runs (150 episodes) |
+| `artifacts/results/results_extended.json` | GPT-OSS extended world, no hints, 3 runs (72 episodes) |
+| `artifacts/results/results_nohints_gptoss.json` | GPT-OSS default world, no hints (backup) |
+| `artifacts/results/results_nohints_llama.json` | Llama default world, no hints (60 episodes) |
+| `artifacts/results/results_hints_gptoss.json` | GPT-OSS default world, with hints (60 episodes) |
+| `artifacts/results/results_hints_llama.json` | Llama default world, with hints (60 episodes) |
+| `artifacts/results/results_cross_model.json` | Cross-model comparison (Llama, no hints) |
+| `artifacts/results/results_scaling_mock.json` | NPC scaling experiment (mock) |
+| `artifacts/results/results_mock_spread.json` | Mock ceiling results, default world |
+| `artifacts/logs/calls.jsonl` | Raw LLM API calls with prompts and responses |
+| `artifacts/plots/plots_hard_hybrid/` | Default world real LLM plots |
+| `artifacts/plots/plots_cross_model/` | Cross-model comparison plots |

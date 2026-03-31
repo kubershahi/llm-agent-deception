@@ -2,8 +2,8 @@
 Run experiments across multiple liar ratios and print a comparison table.
 
 Usage:
-  python run_liar_ratio_comparison.py               # mock
-  python run_liar_ratio_comparison.py --mode full    # real TritonAI LLM
+  python scripts/run_liar_ratio_comparison.py               # mock
+  python scripts/run_liar_ratio_comparison.py --mode full    # real TritonAI LLM
 """
 from __future__ import annotations
 

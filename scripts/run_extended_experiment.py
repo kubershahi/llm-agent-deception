@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from deceptive_text_env.config import (
     ExperimentConfig,
@@ -40,7 +41,7 @@ def main() -> int:
             base_url="https://tritonai-api.ucsd.edu/v1",
             temperature=0.1, max_tokens=1024, seed=42,
         )
-        enable_call_logging("llm_logs")
+        enable_call_logging("artifacts/logs")
 
     config = FrameworkConfig(
         premium_agent_model=agent_model,
@@ -81,7 +82,9 @@ def main() -> int:
         suffix += "_hints"
     if args.mock_only:
         suffix += "_mock"
-    output_path = f"results{suffix}.json"
+    results_dir = Path("artifacts/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"results{suffix}.json"
     with open(output_path, "w") as f:
         json.dump({
             "config": {

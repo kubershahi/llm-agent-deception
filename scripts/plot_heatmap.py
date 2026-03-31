@@ -2,7 +2,7 @@
 Generate heatmap visualizations of experiment results.
 
 Usage:
-  python plot_heatmap.py results_hard-hybrid_spread.json --output-dir plots_hard_hybrid
+  python scripts/plot_heatmap.py artifacts/results/results_hard-hybrid_spread.json --output-dir artifacts/plots/plots_hard_hybrid
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def plot_heatmap(summary: dict, metric: str, title: str, output_path: Path, fmt:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate heatmap plots")
     parser.add_argument("results_file", help="Path to results JSON file")
-    parser.add_argument("--output-dir", default="plots", help="Output directory")
+    parser.add_argument("--output-dir", default="artifacts/plots", help="Output directory")
     args = parser.parse_args()
 
     out = Path(args.output_dir)

@@ -2,8 +2,8 @@
 Generate publication-quality plots from experiment results.
 
 Usage:
-  python plot_results.py results_mock.json
-  python plot_results.py results_full.json --output-dir plots/
+  python scripts/plot_results.py artifacts/results/results_mock.json
+  python scripts/plot_results.py artifacts/results/results_extended.json --output-dir artifacts/plots
 """
 from __future__ import annotations
 
@@ -296,7 +296,7 @@ def plot_trust_trajectories(episodes: list[dict], output_dir: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Plot experiment results")
     parser.add_argument("results_file", help="Path to results JSON file")
-    parser.add_argument("--output-dir", default="plots", help="Output directory for plots")
+    parser.add_argument("--output-dir", default="artifacts/plots", help="Output directory for plots")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
